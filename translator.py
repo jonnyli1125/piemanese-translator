@@ -1,3 +1,4 @@
+import collections
 import csv
 import re
 import nltk
@@ -5,15 +6,12 @@ import dill as pickle
 
 class Translator:
     def __init__(self, replacements_file='replacements.csv', lm_file='lm.pkl'):
-        """
-        initialize replacements dictionary, initialize trigram LM,
-        generate piemanese perturbations on vocab.
-        """
         with open(replacements_file, 'r', encoding='utf-8') as f:
             reader = csv.reader(f, delimiter='\t')
             self.replacements = {row[0]: row[1] for row in reader}
         with open(lm_file, 'rb') as f:
             self.lm = pickle.load(f)
+        self._init_piemanese_forms()
 
     def __call__(self, text):
         text = self._simple_replace(text)
@@ -21,9 +19,7 @@ class Translator:
         return text
 
     def _simple_replace(self, text):
-        """
-        replaces words in text according to replacement dictionary.
-        """
+        """replaces words in text according to replacement dictionary."""
         tokens = text.split()
         new_tokens = []
         for token in tokens:
@@ -44,32 +40,37 @@ class Translator:
         return ' '.join(new_tokens)
 
     def _split_punctuation(self, word):
-        """
-        splits a token into word, punctuation
-        """
+        """splits a token into word, punctuation"""
         match = re.match(r'^(\w+)([?.!]*)$', word)
         if match:
             return match.group(1), match.group(2)
         else:
             return word, ''
 
-    def _is_valid_translation(self, pi_word, en_word):
+    def _init_piemanese_forms(self):
         """
-        returns the translation model likelihood p(pi|e), which in this case
-        for simplicity's sake is either
+        precompute the translation model likelihoods p(pi|e) for all e.
+        in this case for simplicity's sake, p(pi|e) is either
 
-        - 1, if pi is a valid piemanese perturbation of e, or
+        - 1, if pi is a valid piemanese translation of e, or
         - 0, otherwise
 
-        pi is a valid piemanese perturbation of e iff the standardized piemanese
-        form of pi is equal to the standardized piemanese form of e.
-        """
-        return self._to_piemanese(pi_word) == self._to_piemanese(en_word)
+        pi is a valid piemanese translation of e iff the piemanese root
+        form of pi is equal to the piemanese root form of e.
 
-    def _to_piemanese(self, word):
+        therefore, this is equivalent to computing the set:
+            { e in vocab | pi_root(pi) = pi_root(e) }, for some pi
+
+        however, since it is costly to calculate pi_root(e) for all e,
+        we can precompute it and store it as a reverse lookup dictionary.
         """
-        get standardized piemanese form of word.
-        """
+        self.pi_root_lookup = collections.defaultdict(list)
+        for word in self.lm.vocab:
+            pi_word = self._get_piemanese_root(word)
+            self.pi_root_lookup[pi_word].append(word)
+
+    def _get_piemanese_root(self, word):
+        """get piemanese root form of word."""
         word = re.sub(r'er$', 'a', word)
         word = re.sub(r'ing$', 'in', word)
         word = re.sub(r'gh$', '', word)
@@ -94,8 +95,7 @@ class Translator:
             if word in self.lm.vocab:
                 en_tokens.append(pi_tokens[i])
                 continue
-            candidates = [w for w in self.lm.vocab
-                          if self._is_valid_translation(word, w)]
+            candidates = self.pi_root_lookup[self._get_piemanese_root(word)]
             if not candidates:
                 en_tokens.append(pi_tokens[i])
                 continue
