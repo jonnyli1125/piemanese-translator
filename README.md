@@ -60,7 +60,7 @@ Normally, a translation model would consist of a set of parameters that is train
 ### What is a "valid Piemanese translation"?
 We define ![pi](https://latex.codecogs.com/png.image?\dpi{110}&space;\pi) to be a valid Piemanese translation of ![e](https://latex.codecogs.com/png.image?\dpi{110}&space;e) iff the *Piemanese root form* of ![pi](https://latex.codecogs.com/png.image?\dpi{110}&space;\pi) is equal to that of ![e](https://latex.codecogs.com/png.image?\dpi{110}&space;e).
 
-![equation](https://latex.codecogs.com/png.image?\dpi{110}&space;p(\pi|e)=\begin{cases}1&root(\pi)=root(e)\\\\0&otherwise\end{cases})
+![equation](https://latex.codecogs.com/png.image?\dpi{110}&space;p(\pi|e)=\begin{cases}1&PiemaneseRoot(\pi)=PiemaneseRoot(e)\\\\0&otherwise\end{cases})
 
 A *Piemanese root form* of a word is essentially **the sequence of consonant phonemes in a word**. The main rule of Piemanese appears to be that although the spelling can be distorted very far from English, the pronunciation of the words stay largely the same, with the exception of vowels.
 
