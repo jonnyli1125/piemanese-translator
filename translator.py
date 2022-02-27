@@ -11,7 +11,7 @@ class Translator:
             self.replacements = {row[0]: row[1] for row in reader}
         with open(lm_file, 'rb') as f:
             self.lm = pickle.load(f)
-        self._init_piemanese_forms()
+        self._init_piemanese_root_forms()
 
     def __call__(self, text):
         text = self._simple_replace(text)
@@ -47,7 +47,7 @@ class Translator:
         else:
             return word, ''
 
-    def _init_piemanese_forms(self):
+    def _init_piemanese_root_forms(self):
         """
         precompute the translation model likelihoods p(pi|e) for all e.
         in this case for simplicity's sake, p(pi|e) is either

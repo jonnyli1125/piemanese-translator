@@ -27,7 +27,7 @@ def main():
         msg_translated = translator(msg_clean)
         if msg_translated != msg_clean:
             await msg.channel.send(msg_translated)
-            print('translate:', msg_translated)
+            print('translation:', msg_translated)
 
     client.run(config['token'])
 
