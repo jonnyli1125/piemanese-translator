@@ -71,17 +71,22 @@ class Translator:
 
     def _get_piemanese_root(self, word):
         """get piemanese root form of word."""
+        vowels = 'aiueo'
+        consonants = 'bcdfghjklmnpqrstvwxz'
         word = re.sub(r'er$', 'a', word)
         word = re.sub(r'ing$', 'in', word)
+        word = re.sub(r'ph', 'f', word)
         word = re.sub(r'gh$', '', word)
         word = re.sub(r'ght$', 't', word)
         word = re.sub(r'mb$', 'm', word)
         word = re.sub(r'nt$', 'n', word)
+        word = re.sub(r'ck$', 'c', word)
         word = re.sub(r'^wh', 'w', word)
         word = re.sub(r'(?<!^)th', 'f', word)
         word = re.sub(r'([a-z])\1+', r'\1', word)
-        word = re.sub(r'[aiueo]', ' ', word)
-        return re.sub(r'\s+', ' ', word)
+        word = re.sub(rf'([{vowels}][{consonants}]{1,2})e(s?)$', r'\1\2', word)
+        word = re.sub(rf'[{vowels}]|((?<!^)y)', '', word)
+        return word
 
     def _get_best_translation(self, pi_words):
         """

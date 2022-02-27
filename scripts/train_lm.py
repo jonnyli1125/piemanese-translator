@@ -16,17 +16,19 @@ def main():
     parser.add_argument('corpus_dir')
     parser.add_argument('model_file')
     parser.add_argument('-o', '--order', default=3, type=int)
+    parser.add_argument('-s', '--shard', default=1, type=int)
+    parser.add_argument('-c', '--cutoff', default=1, type=int)
     args = parser.parse_args()
 
     corpus = []
     for corpus_file in glob.glob(f'{args.corpus_dir}/*.*'):
         with open(corpus_file, 'r', encoding='utf-8') as f:
             corpus += [condition(line) for line in f]
-    corpus = [line for i, line in enumerate(corpus) if i % 50 == 0]
+    corpus = [line for i, line in enumerate(corpus) if i % args.shard == 0]
     print(len(corpus))
 
     train, vocab = padded_everygram_pipeline(args.order, corpus)
-    vocab = Vocabulary(vocab, unk_cutoff=20)
+    vocab = Vocabulary(vocab, unk_cutoff=args.cutoff)
     model = KneserNeyInterpolated(args.order, vocabulary=vocab)
     model.fit(train)
 
