@@ -76,6 +76,8 @@ class Translator:
         word = re.sub(r'gh$', '', word)
         word = re.sub(r'ght$', 't', word)
         word = re.sub(r'mb$', 'm', word)
+        word = re.sub(r'nt$', 'n', word)
+        word = re.sub(r'^wh', 'w', word)
         word = re.sub(r'(?<!^)th', 'f', word)
         word = re.sub(r'([a-z])\1+', r'\1', word)
         word = re.sub(r'[aiueo]', ' ', word)

@@ -26,7 +26,7 @@ def main():
     print(len(corpus))
 
     train, vocab = padded_everygram_pipeline(args.order, corpus)
-    vocab = Vocabulary(vocab, unk_cutoff=5)
+    vocab = Vocabulary(vocab, unk_cutoff=20)
     model = KneserNeyInterpolated(args.order, vocabulary=vocab)
     model.fit(train)
 
