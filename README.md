@@ -60,3 +60,12 @@ Lastly, to catch the exceptions to the rule, we also use a manually written Piem
 We train a trigram language model with Kneser-Ney smoothing (using NLTK modules) on the [TwitchChat](https://osf.io/39ev7/) corpus. Since we expect this translation bot to be used in a casual Discord chat, the best representation of English should not be from formal/proper English, but rather casual English seen in live chat.
 
 The trigram language model will take the previous two words into context and select the highest probability word from our possible candidate words (selected from our makeshift "translation model"), which will disambiguate when multiple English translations are possible.
+
+Example of an ambiguous case: `wan`
+```
+wan u come
+when you come
+
+nani u wan
+what you want
+```
