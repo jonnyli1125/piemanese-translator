@@ -8,36 +8,29 @@ class Translator:
     def __init__(self, replacements_file='replacements.csv', lm_file='lm.pkl'):
         with open(replacements_file, 'r', encoding='utf-8') as f:
             reader = csv.reader(f, delimiter='\t')
-            self.replacements = {row[0]: row[1] for row in reader}
+            self.replacements = {row[0]: row[1].split(',') for row in reader}
         with open(lm_file, 'rb') as f:
             self.lm = pickle.load(f)
         self._init_piemanese_root_forms()
 
     def __call__(self, text):
-        text = self._simple_replace(text)
-        text = self._get_best_translation(text)
-        return text
+        return self._get_best_translation(text)
 
-    def _simple_replace(self, text):
-        """replaces words in text according to replacement dictionary."""
-        tokens = text.split()
-        new_tokens = []
-        for token in tokens:
-            token = token.lower()
-            word, punc = self._split_punctuation(token)
-            word = re.sub(r'^(.{2,})([a-z])\2{2,}$', r'\1\2', word)
-            variations = {
-                word,
-                re.sub(r'([a-z])\1+$', r'\1', word)
-            }
-            found = variations & self.replacements.keys()
-            if found:
-                new_word = self.replacements[next(iter(found))]
-            else:
-                new_word = word
-            new_token = new_word + punc
-            new_tokens.append(new_token)
-        return ' '.join(new_tokens)
+    def _lookup_candidates(self, word):
+        word = re.sub(r'^(.{2,})([a-z])\2{2,}$', r'\1\2', word)
+        variations = {
+            word,
+            re.sub(r'([a-z])\1+', r'\1', word),
+            word.replace('i', 'ee'),
+            word.replace('ee', 'i'),
+            word.replace('oo', 'u'),
+            word.replace('u', 'oo')
+        }
+        found = variations & self.replacements.keys()
+        if found:
+            return self.replacements[next(iter(found))]
+        else:
+            return self.pi_root_lookup[self._get_piemanese_root(word)]
 
     def _split_punctuation(self, word):
         """splits a token into word, punctuation"""
@@ -73,7 +66,7 @@ class Translator:
         """get piemanese root form of word."""
         vowels = 'aiueo'
         consonants = 'bcdfghjklmnpqrstvwxz'
-        word = re.sub(r'er$', 'a', word)
+        #word = re.sub(r'er$', 'a', word)
         word = re.sub(r'ing$', 'in', word)
         word = re.sub(r'ph', 'f', word)
         word = re.sub(r'gh$', '', word)
@@ -85,8 +78,8 @@ class Translator:
         word = re.sub(r'(?<!^)th', 'f', word)
         word = re.sub(r'([a-z])\1+', r'\1', word)
         word = re.sub(rf'([{vowels}][{consonants}]{1,2})e(s?)$', r'\1\2', word)
-        word = re.sub(rf'[{vowels}]|((?<!^)y)', '', word)
-        return word
+        word = re.sub(rf'[{vowels}]|((?<!^)y)', ' ', word)
+        return re.sub(r'\s+', ' ', word)
 
     def _get_best_translation(self, pi_words):
         """
@@ -99,10 +92,10 @@ class Translator:
         en_tokens = []
         for i in range(2, len(pi_tokens)):
             word, punc = self._split_punctuation(pi_tokens[i])
-            if word in self.lm.vocab:
+            if word in self.lm.vocab and word not in self.replacements:
                 en_tokens.append(pi_tokens[i])
                 continue
-            candidates = self.pi_root_lookup[self._get_piemanese_root(word)]
+            candidates = self._lookup_candidates(word)
             if not candidates:
                 en_tokens.append(pi_tokens[i])
                 continue
