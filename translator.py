@@ -18,17 +18,17 @@ class Translator:
 
     def _lookup_candidates(self, word):
         word = re.sub(r'^(.{2,})([a-z])\2{2,}$', r'\1\2', word)
-        variations = {
+        variations = [
             word,
             re.sub(r'([a-z])\1+', r'\1', word),
             word.replace('i', 'ee'),
             word.replace('ee', 'i'),
             word.replace('oo', 'u'),
             word.replace('u', 'oo')
-        }
-        found = variations & self.replacements.keys()
+        ]
+        found = [w for w in variations if w in self.replacements]
         if found:
-            return self.replacements[next(iter(found))]
+            return self.replacements[found[0]]
         else:
             return self.pi_root_lookup[self._get_piemanese_root(word)]
 
@@ -66,7 +66,7 @@ class Translator:
         """get piemanese root form of word."""
         vowels = 'aiueo'
         consonants = 'bcdfghjklmnpqrstvwxz'
-        #word = re.sub(r'er$', 'a', word)
+        word = re.sub(r'er$', 'a', word)
         word = re.sub(r'ing$', 'in', word)
         word = re.sub(r'ph', 'f', word)
         word = re.sub(r'gh$', '', word)
