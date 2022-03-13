@@ -78,8 +78,8 @@ class Translator:
         word = re.sub(r'(?<!^)th', 'f', word)
         word = re.sub(r'([a-z])\1+', r'\1', word)
         word = re.sub(rf'([{vowels}][{consonants}]{1,2})e(s?)$', r'\1\2', word)
-        word = re.sub(rf'[{vowels}]|((?<!^)y)', ' ', word)
-        return re.sub(r'\s+', ' ', word)
+        word = re.sub(rf'[{vowels}]|((?<!^)y)', '', word)
+        return word
 
     def _get_best_translation(self, pi_words):
         """
