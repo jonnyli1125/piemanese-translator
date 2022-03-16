@@ -82,7 +82,7 @@ class Translator:
 
     def _get_piemanese_root(self, word):
         """
-        get piemanese root form of word.
+        get piemanese root form of word (consonant grapheme sequence).
         used for grapheme based diff in penalty calculation.
         """
         vowels = 'aiueo'
@@ -102,12 +102,14 @@ class Translator:
         word = re.sub(rf'[{vowels}]|((?<!^)y)', '', word)
         return word
 
-    def _get_best_translation(self, pi_words):
+    def _get_best_translation(self, pi_words, verbose=True, k=10):
         """
         returns best english translation by greedily decoding.
         in mathematical terms this is:
             argmax_e p(pi|e) * p(e)
             = argmax_e p(e|pi)
+
+        if verbose is true, show top k words in log.
         """
         pi_tokens = ['<s>', '<s>'] + pi_words.split()
         en_tokens = []
@@ -120,7 +122,8 @@ class Translator:
             context = [self._split_punctuation(t)[0] for t in pi_tokens[i-2:i]]
             combined_scores = {w: self.lm.logscore(w, context) + tm_scores[w]
                 for w in tm_scores}
-            print(combined_scores)
+            if verbose:
+                print(sorted(combined_scores.items(), key=lambda x: -x[1])[:k])
             best_word = max(combined_scores, key=combined_scores.get)
             new_token = best_word + punc
             en_tokens.append(new_token)
