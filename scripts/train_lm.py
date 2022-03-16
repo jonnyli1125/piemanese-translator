@@ -2,7 +2,7 @@ import argparse
 import re
 import glob
 import nltk
-from nltk.lm import KneserNeyInterpolated, Vocabulary
+from nltk.lm import Laplace, Vocabulary
 from nltk.lm.preprocessing import padded_everygram_pipeline
 import dill as pickle
 
@@ -14,7 +14,7 @@ def condition(text):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('corpus_dir')
-    parser.add_argument('model_file')
+    parser.add_argument('lm_file')
     parser.add_argument('-o', '--order', default=3, type=int)
     parser.add_argument('-s', '--shard', default=1, type=int)
     parser.add_argument('-c', '--cutoff', default=1, type=int)
@@ -29,10 +29,10 @@ def main():
 
     train, vocab = padded_everygram_pipeline(args.order, corpus)
     vocab = Vocabulary(vocab, unk_cutoff=args.cutoff)
-    model = KneserNeyInterpolated(args.order, vocabulary=vocab)
+    model = Laplace(args.order, vocabulary=vocab)
     model.fit(train)
 
-    with open(args.model_file, 'wb') as f:
+    with open(args.lm_file, 'wb') as f:
         pickle.dump(model, f)
 
 if __name__ == '__main__':
