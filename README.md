@@ -67,15 +67,15 @@ To catch the exceptions, we also use a manually written Piemanese to English [re
 ## Language Model
 We train a trigram language model with Laplace smoothing (using NLTK modules) on the [TwitchChat](https://osf.io/39ev7/) corpus.
 
-![equation](https://latex.codecogs.com/png.image?\dpi{110}p(e_i|e_{i-1}e_{i-2})=\frac{\text{count}(e_ie_{i-1}e_{i-2})&plus;1}{\sum_{e_k\in&space;E}{\text{count}(e_ke_{i-1}e_{i-2})&plus;1}})
+![equation](https://latex.codecogs.com/png.image?\dpi{110}p(e)=p(e_i|e_{i-1}e_{i-2})=\frac{\text{count}(e_ie_{i-1}e_{i-2})&plus;1}{\sum_{e_k\in&space;E}{\text{count}(e_ke_{i-1}e_{i-2})&plus;1}})
 
 Since we expect this translation bot to be used in a casual Discord chat, the best representation of English should not be from formal/proper English, but rather casual English seen in live chat.
 
-The language model will determine the highest probability word from our possible candidate words (selected from our makeshift translation model) by taking into account the context of the sentence. This will resolve ambiguous situations where multiple English translations are possible.
+The language model will determine the highest probability word by taking into account the context of the sentence (previous two words for a trigram model). This will help resolve ambiguous situations where a Piemanese word may have multiple valid English translations.
 
 ## Decoder
 We use a greedy decoding algorithm. In our case, Piemanese is simple enough that the words are generally aligned one-to-one with regular English, so beam search decoding is not necessary.
 
 ![equation](https://latex.codecogs.com/png.image?\dpi{110}\arg\max_{e\in&space;E}{p(\pi|e)p(e)=\log&space;p(\pi|e)&plus;\log&space;p(e)})
 
-For each word, we add the translation model log score with the language model log score for all english words given the piemanese word, and pick the one with the highest log score as our translation.
+For each word, we add the translation model log score with the language model log score for all english words given the piemanese word, and pick the one with the highest log score as our best translation.
