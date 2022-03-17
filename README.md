@@ -67,7 +67,7 @@ To catch the exceptions, we also use a manually written Piemanese to English [re
 ## Language Model
 We train a trigram language model with Laplace smoothing (using NLTK modules) on the [TwitchChat](https://osf.io/39ev7/) corpus.
 
-![equation](https://latex.codecogs.com/png.image?\dpi{110}p(e)=p(e_i|e_{i-1}e_{i-2})=\frac{\text{count}(e_ie_{i-1}e_{i-2})&plus;1}{\sum_{e_k\in&space;E}{\text{count}(e_ke_{i-1}e_{i-2})&plus;1}})
+![equation](https://latex.codecogs.com/png.image?\dpi{110}p(e)=p(e_i|e_{i-1}e_{i-2})=\frac{\text{count}(e_ie_{i-1}e_{i-2})&plus;1}{\sum_{e_k\in&space;E}{[\text{count}(e_ke_{i-1}e_{i-2})&plus;1]}})
 
 Since we expect this translation bot to be used in a casual Discord chat, the best representation of English should not be from formal/proper English, but rather casual English seen in live chat.
 
