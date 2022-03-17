@@ -50,43 +50,32 @@ We can then interpret the first term ![p(pi|e)](https://latex.codecogs.com/png.i
 - **translation model**: returns a high probability if ![pi](https://latex.codecogs.com/png.image?\dpi{110}&space;\pi) is a good translation of ![e](https://latex.codecogs.com/png.image?\dpi{110}&space;e), low probability if it is not.
 - **language model**: returns a high probability if ![e](https://latex.codecogs.com/png.image?\dpi{110}&space;e) is a well-formed English sentence, lower if it is not.
 
-Then, we use a decoding algorithm (since it is too expensive to go through all possible English sentences) to combine the two models together. In this case, a greedy decoding algorithm is sufficient. Piemanese is simple enough that the words are aligned one-to-one with regular English, so beam search decoding is not necessary.
+Then, we use a **decoding algorithm** (since it is too expensive to go through all possible English sentences) to combine the two models together.
 
 ## Translation Model
-Normally, a translation model would consist of a set of parameters that is trained using an optimization algorithm on a parallel corpus, but since there is no Piemanese-English parallel corpus, we can't actually train our model in the traditional sense. Instead, we use the following function as a makeshift solution for the translation model:
+Normally, a translation model would consist of a set of parameters that is trained using an optimization algorithm on a parallel corpus, but since there is no Piemanese-English parallel corpus, we can't actually train our model in the traditional sense. Instead, we use an algorithmic solution for the translation model:
 
-![equation](https://latex.codecogs.com/png.image?\dpi{110}&space;p(\pi|e)=\begin{cases}1&\pi\text{&space;is&space;a&space;valid&space;Piemanese&space;translation&space;of&space;}e\\\\0&\text{otherwise}\end{cases})
+![equation](https://latex.codecogs.com/png.image?\dpi{110}-\log&space;p(\pi|e)=\alpha\times\text{PhonemeDistance}(\pi,e)&plus;\beta\times\text{GraphemeDistance}(\pi,e))
 
-### What is a "valid Piemanese translation"?
-We define ![pi](https://latex.codecogs.com/png.image?\dpi{110}&space;\pi) to be a valid Piemanese translation of ![e](https://latex.codecogs.com/png.image?\dpi{110}&space;e) iff the *Piemanese root form* of ![pi](https://latex.codecogs.com/png.image?\dpi{110}&space;\pi) is equal to that of ![e](https://latex.codecogs.com/png.image?\dpi{110}&space;e).
+where ![alpha,beta](https://latex.codecogs.com/png.image?\dpi{110}\alpha,\beta&space;) are coefficients and `PhonemeDistance` is a [phonetic feature weighted Levenshtein distance](https://github.com/dmort27/panphon#the-panphondistance-module) (Mortensen et al, 2016) between the pronunciations of ![pi](https://latex.codecogs.com/png.image?\dpi{110}&space;\pi) and ![e](https://latex.codecogs.com/png.image?\dpi{110}&space;e), and `GraphemeDistance` is a grapheme based Levenshtein distance between ![pi](https://latex.codecogs.com/png.image?\dpi{110}&space;\pi) and ![e](https://latex.codecogs.com/png.image?\dpi{110}&space;e) that I defined [here](https://github.com/jonnyli1125/piemanese-translator/blob/main/translator.py).
 
-![equation](https://latex.codecogs.com/png.image?\dpi{110}&space;p(\pi|e)=\begin{cases}1&PiemaneseRoot(\pi)=PiemaneseRoot(e)\\\\0&otherwise\end{cases})
-
-A *Piemanese root form* of a word is essentially **the sequence of consonant phonemes in a word**. The main rule of Piemanese appears to be that although the spelling can be distorted very far from English, the pronunciation of the words stay largely the same, with the exception of vowels.
-
-For example, for this Piemanese-English pair of words:
-```
-mite
-might
-```
-The Piemanese root form (sequence of consonant phonemes) of both of them is `/m t/`, so therefore `mite` is a valid Piemanese translation of `might`. The result is that for the English word `might` (and every other English word that has the root form `/m t/`), we assign probability of `mite` as 1, and other Piemanese words that don't have the same root as 0.
+Essentially, this results in English words that are both phonetically and graphemically similar (have less distance) to the Piemanese word to have higher probabilities than those that are not (have greater distance).
 
 ### Replacement Dictionary
-To catch the exceptions to the rule, we also use a manually written Piemanese to English replacement dictionary before running it through the SMT pipeline. This could also be viewed as an extension of the translation model.
+To catch the exceptions, we also use a manually written Piemanese to English [replacement dictionary](https://github.com/jonnyli1125/piemanese-translator/blob/main/replacements.csv) before running it through the other components of the pipeline. This could also be viewed as an extension of the translation model.
 
 ## Language Model
-We train a trigram language model with Kneser-Ney smoothing (using NLTK modules) on the [TwitchChat](https://osf.io/39ev7/) corpus. Since we expect this translation bot to be used in a casual Discord chat, the best representation of English should not be from formal/proper English, but rather casual English seen in live chat.
+We train a trigram language model with Laplace smoothing (using NLTK modules) on the [TwitchChat](https://osf.io/39ev7/) corpus.
+
+![equation](https://latex.codecogs.com/png.image?\dpi{110}p(e_i|e_{i-1}e_{i-2})=\frac{\text{count}(e_ie_{i-1}e_{i-2})&plus;1}{\sum_{e_k\in&space;E}{\text{count}(e_ke_{i-1}e_{i-2})&plus;1}})
+
+Since we expect this translation bot to be used in a casual Discord chat, the best representation of English should not be from formal/proper English, but rather casual English seen in live chat.
 
 The language model will determine the highest probability word from our possible candidate words (selected from our makeshift translation model) by taking into account the context of the sentence. This will resolve ambiguous situations where multiple English translations are possible.
 
-Continuing our example from above, if we see the Piemanese word `mite`, we can compute the set of English words such that `mite` is a valid Piemanese translation of that word, using the translation model:
-```
-['might', 'meat', 'meet', 'met', 'matt']
-```
-Then, we can determine which of these English words has the highest probability of occuring given the context of the sentence. In this case, a trigram language model means we take the previous two words into account.
+## Decoder
+We use a greedy decoding algorithm. In our case, Piemanese is simple enough that the words are generally aligned one-to-one with regular English, so beam search decoding is not necessary.
 
-If we consider the sentence `maybe i mite`, if `might` was the highest probability word given the context `maybe i`, i.e.
+![equation](https://latex.codecogs.com/png.image?\dpi{110}\arg\max_{e\in&space;E}{p(\pi|e)p(e)=\log&space;p(\pi|e)&plus;\log&space;p(e)})
 
-![equation](https://latex.codecogs.com/png.image?\dpi{110}&space;p(\text{maybe&space;i&space;might})>p(\text{maybe&space;i&space;meat}),p(\text{maybe&space;i&space;meet}),...)
-
-Then we choose `might` as our translation of `mite`.
+For each word, we add the translation model log score with the language model log score for all english words given the piemanese word, and pick the one with the highest log score as our translation.
