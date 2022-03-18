@@ -17,6 +17,7 @@ class Translator:
             self.pron_lookup = pickle.load(f)
         self.dst = panphon.distance.Distance()
         self.dst.fm.weights[2] = 2.0  # consonant
+        self.dst.fm.weights[6] = 10.0  # nasal
         self.dst.fm.weights[14] = 10.0  # labial
 
     def __call__(self, text):
@@ -27,7 +28,7 @@ class Translator:
         text = text.replace('ɚ', 'ə˞').replace('ɝ', 'ɜ˞')
         return text
 
-    def _get_penalty(self, pron1, pron2, word1, word2, alpha=.25, beta=5):
+    def _get_penalty(self, pron1, pron2, word1, word2, alpha=.05, beta=5):
         """
         return pronunciation and grapheme based penalty between two words.
         """
@@ -66,8 +67,6 @@ class Translator:
                 if self.dst.fast_levenshtein_distance(pron, p) <= max_d]
             candidates = {}
             for p in guesses:
-                if p not in self.pron_lookup:
-                    continue
                 for w in self.pron_lookup[p]:
                     candidates[w] = -self._get_penalty(pron, p, word, w)
             return candidates
@@ -85,9 +84,9 @@ class Translator:
         get piemanese root form of word (consonant grapheme sequence).
         used for grapheme based diff in penalty calculation.
         """
-        vowels = 'aiueo'
-        consonants = 'bcdfghjklmnpqrstvwxz'
-        word = re.sub(r'er$', 'a', word)
+        V = 'aiueo'
+        C = 'bcdfghjklmnpqrstvwxz'
+        word = re.sub(r'er(ed)$', 'a\1', word)
         word = re.sub(r'ing$', 'in', word)
         word = re.sub(r'ph', 'f', word)
         word = re.sub(r'gh$', '', word)
@@ -98,8 +97,8 @@ class Translator:
         word = re.sub(r'^wh', 'w', word)
         word = re.sub(r'(?<!^)th', 'f', word)
         word = re.sub(r'([a-z])\1+', r'\1', word)
-        word = re.sub(rf'([{vowels}][{consonants}]{1,2})e(s?)$', r'\1\2', word)
-        word = re.sub(rf'[{vowels}]|((?<!^)y)', '', word)
+        word = re.sub(rf'([{V}][{C}]{1,2})(e|u)(s?)$', r'\1\3', word)
+        #word = re.sub(rf'[{vowels}]|((?<!^)y)', '', word)
         return word
 
     def _get_best_translation(self, pi_words, verbose=True, k=10):
@@ -119,7 +118,7 @@ class Translator:
             if not tm_scores:
                 en_tokens.append(pi_tokens[i])
                 continue
-            context = [self._split_punctuation(t)[0] for t in pi_tokens[i-2:i]]
+            context = [self._split_punctuation(t)[0] for t in en_tokens[-2:]]
             combined_scores = {w: self.lm.logscore(w, context) + tm_scores[w]
                 for w in tm_scores}
             if verbose:
