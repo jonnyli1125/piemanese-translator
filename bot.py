@@ -24,7 +24,7 @@ def main():
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         print(f'[{now}] [{msg.channel}] {msg.author}: {msg.content}')
         msg_clean = ' '.join(msg.content.lower().split())
-        msg_translated = translator(msg_clean)
+        msg_translated = translator(msg_clean, verbose=True)
         if msg_translated != msg_clean:
             await msg.channel.send(msg_translated)
             print('translation:', msg_translated)

@@ -101,7 +101,7 @@ class Translator:
         #word = re.sub(rf'[{vowels}]|((?<!^)y)', '', word)
         return word
 
-    def _get_best_translation(self, pi_words, verbose=True, k=10):
+    def _get_best_translation(self, pi_words, verbose=False, k=10):
         """
         returns best english translation by greedily decoding.
         in mathematical terms this is:
