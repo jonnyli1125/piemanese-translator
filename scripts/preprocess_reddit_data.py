@@ -13,7 +13,7 @@ punct_dict = str.maketrans(punct, ' ' * len(punct))
 url_re = re.compile(r'http\S+')
 space_re = re.compile(r'\s+')
 tag_re = re.compile(r'(^|\s)[#\$@/*]\w+')
-word_re = re.compile(r'^[a-z]\D+[a-z]$')
+word_re = re.compile(r'^[a-z]\D*$')
 reddit_re = re.compile(r'(r|u)/\w+')
 repeat_chars_re = re.compile(r'([a-z])\1{2,}')
 
