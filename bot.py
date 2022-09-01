@@ -1,13 +1,15 @@
-import json
+import os
 from datetime import datetime
 import discord
-from translator import Translator
+from piemanese.translator import Translator
 
 def main():
-    with open('config.json', 'r') as f:
-        config = json.load(f)
+    assert 'DISCORD_USER_IDS' in os.environ
+    assert 'DISCORD_TOKEN' in os.environ
+
     translator = Translator()
     client = discord.Client()
+    user_ids = os.environ['DISCORD_USER_IDS'].split(',')
 
     @client.event
     async def on_ready():
@@ -19,17 +21,17 @@ def main():
             return
         if msg.author == client.user:
             return
-        if msg.guild and msg.author.id not in config['user_ids']:
+        if msg.guild and msg.author.id not in user_ids:
             return
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         print(f'[{now}] [{msg.channel}] {msg.author}: {msg.content}')
-        msg_clean = ' '.join(msg.content.lower().split())
-        msg_translated = translator(msg_clean, verbose=True)
-        if msg_translated != msg_clean:
+        msg_clean = ' '.join(translator.tokenize(msg.content))
+        msg_translated = translator(msg_clean)
+        if msg_translated and msg_clean != msg_translated:
             await msg.channel.send(msg_translated)
             print('translation:', msg_translated)
 
-    client.run(config['token'])
+    client.run(os.environ['DISCORD_TOKEN'])
 
 if __name__ == '__main__':
     main()

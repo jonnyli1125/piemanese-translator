@@ -1,7 +1,7 @@
 # Piemanese (Webspeak) to English Translator
-Simple webspeak to English SMT model as a Discord bot.
+Simple Webspeak to English SMT model as a Discord bot.
 
-The bot can be run with `python3 bot.py` after assigning proper values to `config.json`.
+The bot can be run with `DISCORD_USER_IDS=<uid1,uid2,...> DISCORD_TOKEN=<token> python3 bot.py`.
 
 ## What is Piemanese?
 Piemanese, is a form of webspeak spoken by my friend Pieman.
