@@ -44,7 +44,10 @@ class Decoder:
                     context = [self._split_punctuation(t)[0] for t in context]
                     for w in tm_word_tokens:
                         lm_score += self.lm.logscore(w, context)
-                        context = context[1:] + [w]
+                        if len(context) == self.lm.order-1:
+                            context = context[1:] + [w]
+                        else:
+                            context.append(w)
                     lm_scores[tm_word] = lm_score
                     combined_scores[tm_word] = self._interpolate_scores(
                         tm_score, lm_score)
