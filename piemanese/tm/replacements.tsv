@@ -28,6 +28,7 @@ ballz	balls
 bandwagonin	bandwagoning
 bb	baby
 bbsittin	babysitting
+be	is,be
 bebe	baby
 bebes	babies
 beet	bit
@@ -141,7 +142,7 @@ esk	ask
 esked	asked
 eskin	asking
 esplain	explain
-et	eat
+et	eat,at
 eten	eating
 etin	eating
 eva	ever
@@ -244,11 +245,11 @@ hw	homework
 ic	i see
 icic	i see
 icri	i cry
+id	i'm down,i'd,id
 idek	i don't know
 idekk	i don't know
 idekked	i don't know
 idik	i don't know
-id	i'm down,i'd,id
 ii	i
 ik	i know
 iker	ikea
@@ -324,7 +325,7 @@ lyfu	life
 lyk	like
 lykd	liked
 lyklyk	like
-m	am
+m	am,m
 ma	my
 mah	my
 mai	my
@@ -397,13 +398,13 @@ nuu	no
 nvm	nevermind
 nvr	never
 nxt	next
-ny	any
+ny	any,new york
 nymoar	anymore
 nyone	anyone
 nythin	anything
 nything	anything
 nytin	anything
-o	oh
+o	oh,of
 obar	over
 odang	oh dang
 ofc	of course
@@ -452,6 +453,7 @@ r	are
 raisin	raising
 raizen	raising
 raizin	raising
+rc	richmond centre
 rdy	ready
 retardo	retard
 retoto	retard
@@ -563,7 +565,7 @@ twas	it was
 ty	thank you
 typa	type of
 typin	typing
-u	you
+u	you,you're,your
 ud	you'd
 ufet	you're fat
 ugey	you're gay
@@ -574,13 +576,13 @@ ull	you'll
 unno	don't know
 uno	one
 untilt	untilt
-ur	your
+ur	your,you're
 urmams	your mom's
 urs	yours
 urself	yourself
 utub	youtube
 uwot	you what
-v	very
+v	very,v
 vhy	why
 vill	will
 voicu	voice

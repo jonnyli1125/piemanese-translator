@@ -23,6 +23,8 @@ class Translator:
                     continue
                 expr, repl = line.split('\t')
                 self.en_phrase_repl.append((re.compile(expr), repl))
+        self.no_repeat_re = re.compile(r'(.)\1+')
+        self.emote_re = re.compile(r'^([^a-z0-9]{3,})|(:[a-z])|([a-z]:)|(:\w+:)$')
 
     def __call__(self, pi_sent, **kwargs):
         """Performs extra phrase replacement before and after decoding."""
@@ -44,7 +46,9 @@ class Translator:
         return sent.lower().strip().split()
 
     def _remove_emotes_pre(self, pi_tokens):
-        return [w for w in pi_tokens if w not in self.pi_emotes]
+        return [w for w in pi_tokens
+            if self.no_repeat_re.sub(r'\1', w) not in self.pi_emotes
+            and not self.emote_re.match(w)]
 
     def _remove_emotes_post(self, en_tokens):
         return [w for w in en_tokens if w not in self.en_emotes]

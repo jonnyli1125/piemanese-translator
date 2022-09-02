@@ -31,7 +31,7 @@ class TranslationModel:
             self.en_vocab = en_vocab
         self.tf_model_dir = tf_model_dir
         self.model = tf.keras.models.load_model(tf_model_dir)
-        self.word_re = re.compile(r"^[a-z][a-z0-9'&]*$")
+        self.word_re = re.compile(r"^([a-z][a-z0-9'&]*)|(\d[a-z0-9'&]*[a-z][a-z0-9'&]*)$")
         self.pi_word_clean_re = re.compile(r'([a-z])\1{2,}')
 
     def _get_replacements(self, pi_word):

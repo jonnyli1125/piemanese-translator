@@ -6,6 +6,7 @@ import glob
 import unidecode
 import nltk
 import emoji
+import csv
 
 sent_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
 punct = r'!"#$%()*+,-./:;<=>?@[\\]^_`{|}~'
@@ -17,9 +18,11 @@ word_re = re.compile(r'^[a-z]\D*$')
 reddit_re = re.compile(r'(r|u)/\w+')
 repeat_chars_re = re.compile(r'([a-z])\1{2,}')
 
-def clean(line, mode=None):
+def clean(index, line, mode=None):
     if mode == 'twitch':
-        pass
+        if index == 0:
+            return []
+        line = line.split(',', 2)[-1]
     line = line.strip().lower()
     line = unidecode.unidecode(line)
     line = emoji.replace_emoji(line, replace='')
@@ -47,8 +50,8 @@ def main(args):
     for file in files:
         input_file = os.path.join(args.input_dir, file)
         with open(input_file, 'r', encoding='utf-8') as f:
-            cleaned_lines = [sent for line in f
-                for sent in clean(line, args.mode)]
+            cleaned_lines = [sent for i, line in enumerate(f)
+                for sent in clean(i, line, args.mode)]
         output_file = os.path.join(args.output_dir, file)
         with open(output_file, 'w', encoding='utf-8') as f:
             f.writelines(f'{line}\n' for line in cleaned_lines)

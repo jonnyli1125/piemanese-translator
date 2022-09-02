@@ -1,13 +1,14 @@
 import argparse
 import math
 import glob
+import os.path
 from collections import Counter, defaultdict
 from nltk.lm.preprocessing import padded_everygram_pipeline
 import dill as pickle
 
 class LanguageModel:
     """N-gram LM with Kneser-Ney smoothing."""
-    def __init__(self, order=4, discount=0.05, vocab=None, ngrams=None,
+    def __init__(self, order=4, discount=0.75, vocab=None, ngrams=None,
             unk_token='<UNK>'):
         self.order = order
         self.discount = discount
@@ -69,15 +70,16 @@ class LanguageModel:
     def train(self, dataset_files):
         """Trains an LM given a list of text files."""
         datasets = [self._train_dataset(dataset_file)
-            for dataset_file in dataset_files]
+            for dataset_file in dataset_files if os.path.isfile(dataset_file)]
         self.ngrams = self._combine_datasets(datasets)
+        # TODO spark/mapreduce?
 
-    def _combine_datasets(self, datasets, scale_weight=True):
-        min_weight = min(w for w, ngrams in datasets)
+    def _combine_datasets(self, datasets, scale_weight=False):
+        max_weight = max(w for w, ngrams in datasets)
         combined_ngrams = defaultdict(int)
         for dataset_weight, dataset_ngrams in datasets:
             if scale_weight:
-                weight = min_weight / dataset_weight
+                weight = int(max_weight / dataset_weight)
             else:
                 weight = 1
             for ngram, count in dataset_ngrams.items():
