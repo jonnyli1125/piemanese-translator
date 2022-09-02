@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
 import discord
+import unidecode
 from piemanese.translator import Translator
 
 def main():
@@ -25,7 +26,8 @@ def main():
             return
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         print(f'[{now}] [{msg.channel}] {msg.author}: {msg.content}')
-        msg_clean = ' '.join(translator.tokenize(msg.content))
+        msg_clean = unidecode.unidecode(msg.content)
+        msg_clean = ' '.join(translator.tokenize(msg_clean))
         msg_translated = translator(msg_clean)
         if msg_translated and msg_clean != msg_translated:
             await msg.channel.send(msg_translated)
