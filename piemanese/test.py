@@ -1,6 +1,7 @@
 import argparse
 import os.path
 from difflib import SequenceMatcher
+from tqdm import tqdm
 from .translator import Translator
 
 def main(args):
@@ -16,7 +17,7 @@ def main(args):
     sents = len(en_lines)
     sents_err = 0
     print('\t'.join(['pi', 'en_true', 'en_pred', 'errors']))
-    for pi, en_true in zip(pi_lines, en_lines):
+    for pi, en_true in tqdm(list(zip(pi_lines, en_lines))):
         en_pred = translator(pi, verbose=args.verbose)
         en_pred_words = en_pred.split()
         en_true_words = en_true.split()
