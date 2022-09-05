@@ -1,17 +1,37 @@
 import argparse
 import math
 import glob
-import os.path
+import fileinput
 from collections import Counter
 from nltk.lm.preprocessing import padded_everygram_pipeline
 import dill as pickle
 
+class NgramCounts:
+    """Object to store ngram counts."""
+    def __init__(self):
+        self.counts = Counter()
+        self.counts_of_counts = {}
+        self.pre_counts_ngram = {}
+        self.pre_counts_ctx = {}
+        self.post_counts = {}
+
+    def count(self, ngrams, hash_fn, hash_remove_first_fn, hash_remove_last_fn):
+        self.counts += Counter(hash_fn(ngram) for ngram in ngrams)
+        #self.counts_of_counts = Counter(self.counts.values())
+        self.pre_counts_ngram = Counter(hash_remove_first_fn(ngram)
+            for ngram in self.counts if ngram)
+        self.pre_counts_ctx = Counter()
+        for ngram, count in self.pre_counts_ngram.items():
+            if ngram:
+                self.pre_counts_ctx[hash_remove_first_fn(ngram)] += count
+        self.post_counts = Counter(hash_remove_last_fn(ngram)
+            for ngram in self.counts if ngram)
+        self.counts[hash_fn(None)] = sum(self.counts.values())
+
 class LanguageModel:
-    """N-gram LM with Kneser-Ney smoothing."""
-    def __init__(self, order=4, discount=0.1, vocab=None, ngrams=None,
-            unk_token='<UNK>'):
+    """N-gram LM with Modified Kneser-Ney interpolated smoothing."""
+    def __init__(self, order, vocab, ngram_counts=None, unk_token='<UNK>'):
         self.order = order
-        self.discount = discount
         self.vocab = [None, '<s>', '</s>', unk_token]
         if isinstance(vocab, str):
             with open(vocab, 'r', encoding='utf-8') as f:
@@ -20,23 +40,22 @@ class LanguageModel:
             self.vocab = vocab
         self.vocab2id = {word: i for i, word in enumerate(self.vocab)}
         self.unk_id = self.vocab2id[unk_token]
-        self.ngrams = ngrams if ngrams else {}
-        B = len(self.vocab).bit_length()
-        self.num_ngrams_cont_word = Counter(self._ngram_hash_reduced(ngram)
-            for ngram in self.ngrams if ngram)
-        self.num_ngrams_cont_ctx = Counter()
-        for ngram, count in self.num_ngrams_cont_word.items():
-            if not ngram:
-                continue
-            self.num_ngrams_cont_ctx[self._ngram_hash_reduced(ngram)] += count
-        self.num_ngrams_ctx = Counter(ngram >> B for ngram in self.ngrams)
+        if ngram_counts:
+            self.ngram_counts = ngram_counts
+        else:
+            self.ngram_counts = NgramCounts()
+        self.kn_discount = [0.1, 0.1]
 
-    def logscore(self, word, context=None):
-        """Compute LM probability p(e_i | e_i-1, e_i-2, ...)."""
+    def logscore(self, *args, **kwargs):
+        score = self.score(*args, **kwargs)
+        return math.log(score, 10) if score > 0 else float('-inf')
+
+    def score(self, word, context=None):
+        """Compute the LM probability p(e_i | e_i-1, e_i-2, ...)."""
         ctx_hash = self._ngram_hash(context)
         word_hash = self._ngram_hash(word)
         kn_score = self._kneser_ney_score(word_hash, ctx_hash)
-        return math.log(kn_score) if kn_score > 0 else -99
+        return kn_score
 
     def _kneser_ney_score(self, word_hash, ctx_hash, highest_order=True):
         if not word_hash:  # base case
@@ -45,56 +64,39 @@ class LanguageModel:
         ngram_hash = (ctx_hash << B) + word_hash
         if highest_order:
             # use regular counts
-            word_count = self.ngrams.get(ngram_hash, 0)
-            ctx_count = self.ngrams.get(ctx_hash, 0)
+            word_count = self.ngram_counts.counts.get(ngram_hash, 0)
+            ctx_count = self.ngram_counts.counts.get(ctx_hash, 0)
         else:
             # use continuation counts
-            word_count = self.num_ngrams_cont_word.get(ngram_hash, 0)
-            ctx_count = self.num_ngrams_cont_ctx.get(ctx_hash, 0)
+            word_count = self.ngram_counts.pre_counts_ngram.get(ngram_hash, 0)
+            ctx_count = self.ngram_counts.pre_counts_ctx.get(ctx_hash, 0)
         # recursive case: discount probability and redistribute to lower order
-        discounted_p = max(word_count - self.discount, 0) / (ctx_count + 1)
+        discount = self.kn_discount[min(word_count, len(self.kn_discount) - 1)]
+        discounted_p = max(word_count - discount, 0) / max(ctx_count, 1)
         # calculate normalization weight
-        n_words_in_ctx = self.num_ngrams_ctx.get(ctx_hash, 0)
-        norm_weight = (self.discount * n_words_in_ctx + 1) / (ctx_count + 1)
+        n_words_in_ctx = self.ngram_counts.post_counts.get(ctx_hash, 0)
+        norm_weight = discount * n_words_in_ctx / max(ctx_count, 1)
         # reduce context ngram to lower order and recurse
         if ctx_hash:
             ctx_hash = self._ngram_hash_reduced(ctx_hash)
         else:
             word_hash = 0
+        #print(discounted_p, norm_weight, word_count, ctx_count, n_words_in_ctx)
         return discounted_p + norm_weight * self._kneser_ney_score(
             word_hash, ctx_hash, False)
 
     def train(self, dataset_files):
         """Trains an LM given a list of text files."""
-        datasets = [self._train_dataset(dataset_file)
-            for dataset_file in dataset_files if os.path.isfile(dataset_file)]
-        self.ngrams = self._combine_datasets(datasets)
-        # TODO spark/mapreduce?
-
-    def _combine_datasets(self, datasets, scale_weight=False):
-        max_weight = max(w for w, ngrams in datasets)
-        combined_ngrams = Counter()
-        for dataset_weight, dataset_ngrams in datasets:
-            if scale_weight:
-                weight = int(max_weight / dataset_weight)
-            else:
-                weight = 1
-            for ngram, count in dataset_ngrams.items():
-                combined_ngrams[ngram] += weight * count
-        return dict(combined_ngrams)
-
-    def _train_dataset(self, dataset_file):
-        with open(dataset_file, 'r', encoding='utf-8') as f:
-            weight = sum(len(line.strip().split()) for line in f)
-        with open(dataset_file, 'r', encoding='utf-8') as f:
-            lines = [line.strip().split() for line in f]
-            ngrams, _ = padded_everygram_pipeline(self.order, lines)
-            ngrams_dict = Counter(self._ngram_hash(ngram)
-                for line in ngrams for ngram in line)
-            ngrams_dict[0] = sum(ngrams_dict.values())
-        return weight, ngrams_dict
+        with fileinput.input(files=dataset_files) as f:
+            ngrams, _ = padded_everygram_pipeline(self.order,
+                (line.strip().split() for line in f))
+            ngrams = (ngram for line in ngrams for ngram in line)
+            B = len(self.vocab).bit_length()
+            self.ngram_counts.count(ngrams, self._ngram_hash,
+                self._ngram_hash_reduced, lambda x: x >> B)
 
     def _ngram_hash(self, ngram):
+        """Returns hash of an ngram"""
         if not ngram:
             return 0
         if isinstance(ngram, str):
@@ -104,6 +106,7 @@ class LanguageModel:
             for i, word in enumerate(ngram))
 
     def _ngram_hash_reduced(self, ngram_hash):
+        """Returns hash of an ngram with its leftmost word removed."""
         B = len(self.vocab).bit_length()
         ngram_order = -(ngram_hash.bit_length() // -B)
         reduce_mask = (1 << ((ngram_order - 1) * B)) - 1
@@ -113,9 +116,8 @@ class LanguageModel:
         with open(path, 'wb') as f:
             data = {
                 'order': self.order,
-                'discount': self.discount,
                 'vocab': self.vocab,
-                'ngrams': self.ngrams
+                'ngram_counts': self.ngram_counts
             }
             pickle.dump(data, f)
 
@@ -124,16 +126,17 @@ class LanguageModel:
         with open(path, 'rb') as f:
             return cls(**pickle.load(f))
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('dataset_files_pattern')
-    parser.add_argument('lm_file')
-    parser.add_argument('--order', default=4)
-    parser.add_argument('--vocab_file',
-        default=f'{__file__}/../../vocab/vocab.txt')
-    args = parser.parse_args()
+def debug(args):
+    lm = LanguageModel.load(args.lm_file)
+    while True:
+        tokens = input().strip().lower().split()
+        word = tokens[-1]
+        context = tokens[-lm.order:-1]
+        print(lm.logscore(word, context))
 
+def train(args):
     dataset_files = glob.glob(args.dataset_files_pattern, recursive=True)
-    lm = LanguageModel(args.order, vocab=args.vocab_file)
+    lm = LanguageModel(order=args.order, vocab=args.vocab_file)
     lm.train(dataset_files)
     lm.save(args.lm_file)
+    print('Saved to', args.lm_file)

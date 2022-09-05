@@ -8,7 +8,7 @@ import numpy as np
 import Levenshtein
 
 class TranslationModel:
-    def __init__(self, replacements=None, en_vocab=None, threshold=0.5,
+    def __init__(self, replacements=None, en_vocab=None, threshold=0.95,
             tf_model_dir='tm_char_cnn'):
         if not replacements:
             replacements = {}
@@ -44,18 +44,18 @@ class TranslationModel:
             return None
         replacements = self.replacements[found[0]]
         # TODO precompute replacement probabilities from NN and store in pkl
-        return {w: math.log(1/len(replacements)) for w in replacements}
+        return {w: 1 / len(replacements) for w in replacements}
 
-    def logscores(self, pi_word):
+    def scores(self, pi_word):
         """Compute the TM likelihood p(pi|e) over all e."""
         if pi_word in ['<s>', '</s>'] or not self.word_re.match(pi_word):
-            return {pi_word: 0}
+            return {pi_word: 1}
         pi_word = self.pi_word_clean_re.sub(r'\1\1', pi_word)
         replacements = self._get_replacements(pi_word)
         if replacements is not None:
             return replacements
-        en_vocab = [w for w in self.en_vocab
-            if Levenshtein.ratio(pi_word, w)]
+        pi_chars = set(pi_word)
+        en_vocab = [w for w in self.en_vocab if any(c in pi_chars for c in w)]
         in_tensor = [
             tf.constant([pi_word] * len(en_vocab)),
             tf.constant(en_vocab)
@@ -64,10 +64,14 @@ class TranslationModel:
         scores = {en_vocab[i]: p for i, p in enumerate(probs)
             if p >= self.threshold}
         if not scores:
-            return {pi_word: 0}
-        z = sum(scores.values())
-        log_normalized_scores = {w: math.log(p / z) for w, p in scores.items()}
-        return log_normalized_scores
+            return {pi_word: 1}
+        else:
+            return scores
+
+    def logscore(self, *args, **kwargs):
+        scores = self.scores(*args, **kwargs)
+        return {w: math.log(score, 10) if score > 0 else float('-inf')
+            for w, score in scores.items()}
 
     def save(self, path):
         # TODO: save tf model as well
@@ -85,6 +89,14 @@ class TranslationModel:
         with open(path, 'rb') as f:
             return cls(**pickle.load(f))
 
-if __name__ == '__main__':
+def debug(args):
+    tm = TranslationModel.load(args.tm_file)
+    while True:
+        word = input().strip().lower()
+        scores = tm.scores(word)
+        print(sorted(scores.items(), key=lambda x: -x[1]))
+
+def train(args):
     tm = TranslationModel()
-    tm.save('tm.pkl')
+    tm.save(args.tm_file)
+    print('Saved to', args.tm_file)
