@@ -2,6 +2,7 @@ import argparse
 import os.path
 import re
 import math
+import functools
 import dill as pickle
 import tensorflow as tf
 import numpy as np
@@ -46,6 +47,25 @@ class TranslationModel:
         # TODO precompute replacement probabilities from NN and store in pkl
         return {w: 1 / len(replacements) for w in replacements}
 
+    @functools.lru_cache
+    def _tf_model_scores(self, pi_word):
+        # filter by heuristic first
+        pi_chars = set(pi_word)
+        en_vocab = [w for w in self.en_vocab if any(c in pi_chars for c in w)]
+        # tf model call
+        in_tensor = [
+            tf.constant([pi_word] * len(en_vocab)),
+            tf.constant(en_vocab)
+        ]
+        probs = self.model.call(in_tensor, training=False).numpy().flatten()
+        # filter by threshold
+        scores = {en_vocab[i]: p for i, p in enumerate(probs)
+            if p >= self.threshold}
+        if not scores:
+            return {pi_word: 1}
+        else:
+            return scores
+
     def scores(self, pi_word):
         """Compute the TM likelihood p(pi|e) over all e."""
         if pi_word in ['<s>', '</s>'] or not self.word_re.match(pi_word):
@@ -54,19 +74,7 @@ class TranslationModel:
         replacements = self._get_replacements(pi_word)
         if replacements is not None:
             return replacements
-        pi_chars = set(pi_word)
-        en_vocab = [w for w in self.en_vocab if any(c in pi_chars for c in w)]
-        in_tensor = [
-            tf.constant([pi_word] * len(en_vocab)),
-            tf.constant(en_vocab)
-        ]
-        probs = self.model.call(in_tensor, training=False).numpy().flatten()
-        scores = {en_vocab[i]: p for i, p in enumerate(probs)
-            if p >= self.threshold}
-        if not scores:
-            return {pi_word: 1}
-        else:
-            return scores
+        return self._tf_model_scores(pi_word)
 
     def logscore(self, *args, **kwargs):
         scores = self.scores(*args, **kwargs)
