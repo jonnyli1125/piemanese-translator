@@ -1,4 +1,5 @@
 import re
+import math
 
 class Decoder:
     def __init__(self, lm, tm):
@@ -30,7 +31,7 @@ class Decoder:
         topn_sents = [(0, [])]
         for i, pi_token in enumerate(pi_tokens):
             word, punc = self._split_punctuation(pi_token)
-            tm_scores = self.tm.logscores(word)
+            tm_scores = self.tm.scores(word)
             if not tm_scores:
                 continue
             new_topn_sents = []
@@ -38,20 +39,18 @@ class Decoder:
                 combined_scores = {}
                 lm_scores = {}
                 for tm_word, tm_score in tm_scores.items():
-                    lm_score = 0
+                    lm_score = 1
                     tm_word_tokens = tm_word.split()
                     context = en_tokens[-self.lm.order+1:]
                     context = [self._split_punctuation(t)[0] for t in context]
                     for w in tm_word_tokens:
-                        lm_score += self.lm.logscore(w, context)
+                        lm_score *= self.lm.score(w, context)
                         if len(context) == self.lm.order-1:
                             context = context[1:] + [w]
                         else:
                             context.append(w)
                     lm_scores[tm_word] = lm_score
-                    combined_scores[tm_word] = self._interpolate_scores(
-                        tm_score, lm_score)
-                # TODO: normalize scores?
+                combined_scores = self._interpolate_scores(tm_scores, lm_scores)
                 topn_words = sorted(combined_scores.items(),
                     key=lambda x: -x[1])[:n]
                 if verbose >= 2:
@@ -67,7 +66,18 @@ class Decoder:
                 print(topn_sents)
         return [(log_p, en_tokens[1:-1]) for log_p, en_tokens in topn_sents]
 
-    def _interpolate_scores(self, tm_score, lm_score):
+    def _interpolate_scores(self, tm_scores, lm_scores):
         # TODO find better way to interpolate tm/lm lm_scores
         # upweight tm score if lm probs are all low etc
-        return tm_score + lm_score
+        tm_scores = self._log_normalize_scores(tm_scores)
+        lm_scores = self._log_normalize_scores(lm_scores)
+        combined_scores = {}
+        for word in tm_scores:
+            combined_scores[word] = tm_scores[word] + lm_scores[word]
+        return combined_scores
+
+    def _log_normalize_scores(self, scores):
+        z = max(sum(scores.values()), 1)
+        log_normalized_scores = {w: math.log(p / z, 10) if p > 0 else -99
+            for w, p in scores.items()}
+        return log_normalized_scores
