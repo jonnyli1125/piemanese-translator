@@ -13,20 +13,37 @@ class NgramCounts:
         self.counts_of_counts = {}
         self.pre_counts_ngram = {}
         self.pre_counts_ctx = {}
-        self.post_counts = {}
+        self.post_counts = [{}, {}, {}]
+        self.kn_discount = [0, 0, 0]
 
     def count(self, ngrams, hash_fn, hash_remove_first_fn, hash_remove_last_fn):
+        # regular ngram counts
         self.counts += Counter(hash_fn(ngram) for ngram in ngrams)
-        #self.counts_of_counts = Counter(self.counts.values())
+        # counts of counts
+        self.counts_of_counts = Counter(self.counts.values())
+        # preceding word type counts
         self.pre_counts_ngram = Counter(hash_remove_first_fn(ngram)
             for ngram in self.counts if ngram)
         self.pre_counts_ctx = Counter()
-        for ngram, count in self.pre_counts_ngram.items():
+        for ngram, c in self.pre_counts_ngram.items():
             if ngram:
-                self.pre_counts_ctx[hash_remove_first_fn(ngram)] += count
-        self.post_counts = Counter(hash_remove_last_fn(ngram)
-            for ngram in self.counts if ngram)
-        self.counts[hash_fn(None)] = sum(self.counts.values())
+                self.pre_counts_ctx[hash_remove_first_fn(ngram)] += c
+        # succeeding word type counts
+        for i in range(len(self.post_counts) - 1):
+            self.post_counts[i] = Counter(hash_remove_last_fn(ngram)
+                for ngram, c in self.counts.items() if c == i + 1)
+        self.post_counts[-1] = Counter(hash_remove_last_fn(ngram)
+            for ngram, c in self.counts.items() if c >= len(self.post_counts))
+        # modified kneser ney discounts
+        n = [self.counts_of_counts.get(i + 1, 0)
+            for i in range(len(self.kn_discount) + 1)]
+        d = n[0] / (n[0] + 2 * n[1])
+        self.kn_discount = [(i + 1) - (i + 2) * d * n[i + 1] / n[i]
+            for i in range(len(self.kn_discount))]
+        # total unigram count
+        null_ctx = hash_fn(None)
+        self.counts[null_ctx] = sum(c for ngram, c in self.counts.items()
+            if hash_remove_first_fn(ngram) == null_ctx)
 
 class LanguageModel:
     """N-gram LM with Modified Kneser-Ney interpolated smoothing."""
@@ -44,7 +61,6 @@ class LanguageModel:
             self.ngram_counts = ngram_counts
         else:
             self.ngram_counts = NgramCounts()
-        self.kn_discount = [0.1, 0.1]
 
     def logscore(self, *args, **kwargs):
         score = self.score(*args, **kwargs)
@@ -71,17 +87,19 @@ class LanguageModel:
             word_count = self.ngram_counts.pre_counts_ngram.get(ngram_hash, 0)
             ctx_count = self.ngram_counts.pre_counts_ctx.get(ctx_hash, 0)
         # recursive case: discount probability and redistribute to lower order
-        discount = self.kn_discount[min(word_count, len(self.kn_discount) - 1)]
-        discounted_p = max(word_count - discount, 0) / max(ctx_count, 1)
+        kn_discounts = self.ngram_counts.kn_discount
+        discount = kn_discounts[min(word_count, len(kn_discounts) - 1)]
+        discounted_p = max(word_count - discount, 0) / (ctx_count + 1)
         # calculate normalization weight
-        n_words_in_ctx = self.ngram_counts.post_counts.get(ctx_hash, 0)
-        norm_weight = discount * n_words_in_ctx / max(ctx_count, 1)
+        n_ctxs = self.ngram_counts.post_counts
+        norm_weight_numer = sum(d * n_ctx.get(ctx_hash, 0) + int(i == 0)
+            for i, (d, n_ctx) in enumerate(zip(kn_discounts, n_ctxs)))
+        norm_weight = norm_weight_numer / (ctx_count + 1)
         # reduce context ngram to lower order and recurse
         if ctx_hash:
             ctx_hash = self._ngram_hash_reduced(ctx_hash)
         else:
             word_hash = 0
-        #print(discounted_p, norm_weight, word_count, ctx_count, n_words_in_ctx)
         return discounted_p + norm_weight * self._kneser_ney_score(
             word_hash, ctx_hash, False)
 
