@@ -8,10 +8,11 @@ if __name__ == '__main__':
     subparsers = parser.add_subparsers()
 
     train_parser = subparsers.add_parser('train', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    train_parser.add_argument('dataset_files_pattern')
+    lm_dir = os.path.dirname(__file__)
+    train_parser.add_argument('--dataset_files_pattern', default=f'{lm_dir}/datasets/**/*.*', help='Pattern to select training files')
     train_parser.add_argument('--lm_file', default='lm.pkl', help='Name of LM file')
     train_parser.add_argument('--order', default=3, type=int, help='Max ngram order')
-    train_parser.add_argument('--vocab_file', default=f'{os.path.dirname(__file__)}/../vocab/vocab.txt', help='Path to vocab file')
+    train_parser.add_argument('--vocab_file', default=f'{lm_dir}/../vocab/vocab.txt', help='Path to vocab file')
     train_parser.set_defaults(fn=train)
 
     debug_parser = subparsers.add_parser('debug', formatter_class=argparse.ArgumentDefaultsHelpFormatter)

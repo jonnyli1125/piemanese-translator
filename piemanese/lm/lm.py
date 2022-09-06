@@ -88,7 +88,7 @@ class LanguageModel:
             ctx_count = self.ngram_counts.pre_counts_ctx.get(ctx_hash, 0)
         # recursive case: discount probability and redistribute to lower order
         kn_discounts = self.ngram_counts.kn_discount
-        discount = kn_discounts[min(word_count, len(kn_discounts) - 1)]
+        discount = kn_discounts[min(word_count, len(kn_discounts)) - 1]
         discounted_p = max(word_count - discount, 0) / (ctx_count + 1)
         # calculate normalization weight
         n_ctxs = self.ngram_counts.post_counts
@@ -100,6 +100,7 @@ class LanguageModel:
             ctx_hash = self._ngram_hash_reduced(ctx_hash)
         else:
             word_hash = 0
+        print(discounted_p, norm_weight, word_count, ctx_count)
         return discounted_p + norm_weight * self._kneser_ney_score(
             word_hash, ctx_hash, False)
 
