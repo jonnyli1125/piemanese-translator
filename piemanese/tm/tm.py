@@ -5,8 +5,6 @@ import math
 import functools
 import dill as pickle
 import tensorflow as tf
-import numpy as np
-import Levenshtein
 
 class TranslationModel:
     def __init__(self, replacements=None, en_vocab=None, threshold=0.95,
@@ -20,19 +18,23 @@ class TranslationModel:
                     replacements[pi] = en.split(',')
         self.replacements = replacements
         self.threshold = threshold
-        if not en_vocab:
-            en_vocab = f'{os.path.dirname(__file__)}/../vocab'
         self.en_vocab = []
+        vocab_dir = f'{os.path.dirname(__file__)}/../vocab'
+        if not en_vocab:
+            en_vocab = vocab_dir
         if isinstance(en_vocab, str):
-            with open(en_vocab + '/vocab.txt', 'r') as f:
+            with open(f'{en_vocab}/vocab.txt', 'r') as f:
                 self.en_vocab = [line.strip() for line in f]
-            with open(en_vocab + '/phrase_vocab.txt', 'r') as f:
+            with open(f'{en_vocab}/phrase_vocab.txt', 'r') as f:
                 self.en_vocab += [line.strip() for line in f]
+            with open(f'{en_vocab}/names.txt', 'r') as f:
+                self.en_vocab += [line.strip() for line in f]
+            self.en_vocab = list(dict.fromkeys(self.en_vocab))
         else:
             self.en_vocab = en_vocab
         self.tf_model_dir = tf_model_dir
         self.model = tf.keras.models.load_model(tf_model_dir)
-        self.word_re = re.compile(r"^([a-z][a-z0-9'&]*)|(\d[a-z0-9'&]*[a-z][a-z0-9'&]*)$")
+        self.word_re = re.compile(r"^[a-z][a-z0-9'&]*$")
         self.pi_word_clean_re = re.compile(r'([a-z])\1{2,}')
 
     def _get_replacements(self, pi_word):
@@ -47,39 +49,61 @@ class TranslationModel:
         # TODO precompute replacement probabilities from NN and store in pkl
         return {w: 1 / len(replacements) for w in replacements}
 
-    @functools.lru_cache
-    def _tf_model_scores(self, pi_word):
-        # filter by heuristic first
-        pi_chars = set(pi_word)
-        en_vocab = [w for w in self.en_vocab if any(c in pi_chars for c in w)]
+    def multiple_scores(self, pi_words):
+        """Compute the TM likelihood p(pi|e) over all e, for all inputs pi."""
+        # clean words in place
+        for i in range(len(pi_words)):
+            pi_words[i] = self.pi_word_clean_re.sub(r'\1\1', pi_words[i])
+        scores = {}
+        # get vocab lengths so we can split output tensor afterwards
+        en_vocabs = [self.en_vocab]
+        en_vocab_lengths = []
+        en_vocab_all = []
+        pi_words_all = []
+        for pi_word in pi_words:
+            if pi_word in scores:
+                continue
+            if pi_word in ['<s>', '</s>']:
+                scores[pi_word] = {pi_word: 1}
+                continue
+            replacements = self._get_replacements(pi_word)
+            if replacements is not None:
+                scores[pi_word] = replacements
+                continue
+            if not self.word_re.match(pi_word):
+                scores[pi_word] = {pi_word: 1}
+                continue
+            pi_chars = set(pi_word)
+            for en_vocab in en_vocabs:
+                # filter by heuristic first: levenshtein ratio > 0
+                # e.g. there is at least one common character
+                en_heur = [w for w in en_vocab if any(c in pi_chars for c in w)]
+                en_vocab_all += en_heur
+                en_vocab_lengths.append(len(en_heur))
+                pi_words_all += [pi_word] * len(en_heur)
         # tf model call
-        in_tensor = [
-            tf.constant([pi_word] * len(en_vocab)),
-            tf.constant(en_vocab)
-        ]
-        probs = self.model.call(in_tensor, training=False).numpy().flatten()
-        # filter by threshold
-        scores = {en_vocab[i]: p for i, p in enumerate(probs)
-            if p >= self.threshold}
-        if not scores:
-            return {pi_word: 1}
-        else:
+        if not pi_words_all:
             return scores
-
-    def scores(self, pi_word):
-        """Compute the TM likelihood p(pi|e) over all e."""
-        if pi_word in ['<s>', '</s>'] or not self.word_re.match(pi_word):
-            return {pi_word: 1}
-        pi_word = self.pi_word_clean_re.sub(r'\1\1', pi_word)
-        replacements = self._get_replacements(pi_word)
-        if replacements is not None:
-            return replacements
-        return self._tf_model_scores(pi_word)
-
-    def logscore(self, *args, **kwargs):
-        scores = self.scores(*args, **kwargs)
-        return {w: math.log(score, 10) if score > 0 else float('-inf')
-            for w, score in scores.items()}
+        in_tensor = [
+            tf.constant(pi_words_all),
+            tf.constant(en_vocab_all)
+        ]
+        out_tensor = self.model.call(in_tensor, training=False)
+        out_probs = tf.reshape(out_tensor, [-1]).numpy()
+        # split by vocab lengths
+        i = 0
+        for n in en_vocab_lengths:
+            if n == 0:
+                continue
+            pi_word = pi_words_all[i]
+            if pi_word not in scores:
+                en_scores = {en_vocab_all[j]: out_probs[j]
+                    for j in range(i, i+n) if out_probs[j] >= self.threshold}
+                if not en_scores:
+                    en_scores = {pi_word: 1}
+                scores[pi_word] = en_scores
+            i += n
+        return scores
 
     def save(self, path):
         # TODO: save tf model as well
@@ -100,9 +124,10 @@ class TranslationModel:
 def debug(args):
     tm = TranslationModel.load(args.tm_file)
     while True:
-        word = input().strip().lower()
-        scores = tm.scores(word)
-        print(sorted(scores.items(), key=lambda x: -x[1]))
+        words = input().strip().lower().split()
+        scores = tm.multiple_scores(words)
+        for pi_word, en_word_scores in scores.items():
+            print(pi_word, sorted(en_word_scores.items(), key=lambda x: -x[1]))
 
 def train(args):
     tm = TranslationModel()

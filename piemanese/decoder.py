@@ -29,9 +29,15 @@ class Decoder:
         """
         pi_tokens = ['<s>'] + pi_tokens + ['</s>']
         topn_sents = [(0, [])]
-        for i, pi_token in enumerate(pi_tokens):
+        pi_tokens_word = []
+        pi_tokens_punc = []
+        for pi_token in pi_tokens:
             word, punc = self._split_punctuation(pi_token)
-            tm_scores = self.tm.scores(word)
+            pi_tokens_word.append(word)
+            pi_tokens_punc.append(punc)
+        tm_scores_all = self.tm.multiple_scores(pi_tokens_word)
+        for i, (word, punc) in enumerate(zip(pi_tokens_word, pi_tokens_punc)):
+            tm_scores = tm_scores_all[word]
             if not tm_scores:
                 continue
             new_topn_sents = []
