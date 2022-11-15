@@ -1,6 +1,6 @@
 import argparse
 import collections
-import re
+import os
 import phonemizer
 
 def phonemize(text):
@@ -10,8 +10,8 @@ def phonemize(text):
     return text
 
 def main(args):
-    with open(args.lm_file, 'rb') as f:
-        vocab = pickle.load(f)["vocab"][4:]
+    with open(args.vocab_file, 'r') as f:
+        vocab = [l.strip() for l in f]
     pron_lookup = collections.defaultdict(list)
     # chunk to avoid overloading phonemizer
     n_chunks = 100
@@ -21,13 +21,14 @@ def main(args):
     for vocab_chunk, pron_chunk in zip(vocab_chunks, pron_chunks):
         for word, pron in zip(vocab_chunk, pron_chunk):
             pron_lookup[pron].append(word)
+    os.makedirs(os.path.dirname(args.pron_file), exist_ok=True)
     with open(args.pron_file, 'w', encoding='utf-8') as f:
-        f.writelines(f'{word}\t{pron}\n'
+        f.writelines(f'{word}\t{",".join(pron)}\n'
             for word, pron in sorted(pron_lookup.items()))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('lm_file')
+    parser.add_argument('vocab_file')
     parser.add_argument('pron_file')
     args = parser.parse_args()
 
