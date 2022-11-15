@@ -8,7 +8,7 @@ class Decoder:
 
     def _split_punctuation(self, word):
         """Splits a token into word, punctuation"""
-        match = re.match(r"^([a-z][a-z'&]+)([?.!,]+)$", word)
+        match = re.match(r"^([a-z][a-z0-9']*)([?.!,]+)$", word)
         if match:
             return match.group(1), match.group(2)
         else:
@@ -35,7 +35,8 @@ class Decoder:
             word, punc = self._split_punctuation(pi_token)
             pi_tokens_word.append(word)
             pi_tokens_punc.append(punc)
-        tm_scores_all = self.tm.multiple_scores(pi_tokens_word)
+        pi_tokens_word = self.tm.clean_words(pi_tokens_word)
+        tm_scores_all = self.tm.multiple_scores(pi_tokens_word, top_n=n)
         for i, (word, punc) in enumerate(zip(pi_tokens_word, pi_tokens_punc)):
             tm_scores = tm_scores_all[word]
             if not tm_scores:

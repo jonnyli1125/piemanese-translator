@@ -7,8 +7,8 @@ import dill as pickle
 import tensorflow as tf
 
 class TranslationModel:
-    def __init__(self, replacements=None, en_vocab=None, threshold=0.95,
-            tf_model_dir='tm_char_cnn'):
+    def __init__(self, replacements=None, en_vocab=None,
+            tf_model_dir='tm_lstm'):
         if not replacements:
             replacements = {}
             replacements_file = f'{os.path.dirname(__file__)}/replacements.tsv'
@@ -17,7 +17,6 @@ class TranslationModel:
                     pi, en = line.strip().split('\t')
                     replacements[pi] = en.split(',')
         self.replacements = replacements
-        self.threshold = threshold
         self.en_vocab = []
         vocab_dir = f'{os.path.dirname(__file__)}/../vocab'
         if not en_vocab:
@@ -34,7 +33,7 @@ class TranslationModel:
             self.en_vocab = en_vocab
         self.tf_model_dir = tf_model_dir
         self.model = tf.keras.models.load_model(tf_model_dir)
-        self.word_re = re.compile(r"^[a-z][a-z0-9'&]*$")
+        self.word_re = re.compile(r"^[a-z][a-z0-9']*$")
         self.pi_word_clean_re = re.compile(r'([a-z])\1{2,}')
 
     def _get_replacements(self, pi_word):
@@ -49,11 +48,11 @@ class TranslationModel:
         # TODO precompute replacement probabilities from NN and store in pkl
         return {w: 1 / len(replacements) for w in replacements}
 
-    def multiple_scores(self, pi_words):
+    def clean_words(self, pi_words):
+        return [self.pi_word_clean_re.sub(r'\1\1', w) for w in pi_words]
+
+    def multiple_scores(self, pi_words, threshold=0.5):
         """Compute the TM likelihood p(pi|e) over all e, for all inputs pi."""
-        # clean words in place
-        for i in range(len(pi_words)):
-            pi_words[i] = self.pi_word_clean_re.sub(r'\1\1', pi_words[i])
         scores = {}
         # get vocab lengths so we can split output tensor afterwards
         en_vocabs = [self.en_vocab]
@@ -98,7 +97,7 @@ class TranslationModel:
             pi_word = pi_words_all[i]
             if pi_word not in scores:
                 en_scores = {en_vocab_all[j]: out_probs[j]
-                    for j in range(i, i+n) if out_probs[j] >= self.threshold}
+                    for j in range(i, i+n) if out_probs[j] >= threshold}
                 if not en_scores:
                     en_scores = {pi_word: 1}
                 scores[pi_word] = en_scores
@@ -110,7 +109,6 @@ class TranslationModel:
         with open(path, 'wb') as f:
             data = {
                 'replacements': self.replacements,
-                'threshold': self.threshold,
                 'en_vocab': self.en_vocab,
                 'tf_model_dir': self.tf_model_dir
             }

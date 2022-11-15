@@ -1,4 +1,5 @@
 *.pyc
 config.json
-*.out
+*.bench
 *.pkl
+tf_models/
